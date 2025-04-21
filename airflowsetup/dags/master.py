@@ -1,18 +1,12 @@
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow import DAG
 from airflow.sensors.external_task import ExternalTaskSensor
+from airflow.utils.dates import days_ago
 from datetime import datetime,timedelta
 from airflow.utils.state import State
 from airflow.models import DagRun
 
 ## to match the latest timestamp run of the first job 
-def _get_latest_execution_date(_, **kwargs):
-    runs = DagRun.find(dag_id='retail_data_cleaning_dag', state=State.SUCCESS)
-    if runs:
-        latest = sorted(runs, key=lambda r: r.execution_date)[-1].execution_date
-        return [latest]  # ← return a list!
-    return [] 
-
 default_args = {
     'owner': 'shefali',
     'retries': 1,
@@ -40,7 +34,7 @@ with DAG(
         mode='poke',
         timeout=600,
         poke_interval = 30,
-        execution_date_fn=_get_latest_execution_date,
+        execution_date_fn=lambda dt: dt.replace(second=0, microsecond=0),
         failed_states=['failed','skipped'],
         allowed_states =['success'],
     )
