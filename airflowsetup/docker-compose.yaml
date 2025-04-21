@@ -1,0 +1,140 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    networks:
+      - airflow
+
+  redis:
+    image: redis:latest
+    networks:
+      - airflow
+
+  airflow-webserver:
+    image: apache/airflow:2.8.0
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+      AIRFLOW__WEBSERVER__SECRET_KEY: 'your_secret_key_here'
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - /mnt/c/Users/Shefali/Documents/Retail_project/airflowsetup/dags/sparkjobs:/opt/sparkjobs
+    ports:
+      - "8080:8080"
+    command: webserver
+    networks:
+      - airflow
+
+  airflow-scheduler:
+    image: apache/airflow:2.8.0
+    restart: always
+    depends_on:
+      - airflow-webserver
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - /mnt/c/Users/Shefali/Documents/Retail_project/airflowsetup/dags/sparkjobs:/opt/sparkjobs
+    command: scheduler
+    networks:
+      - airflow
+
+  airflow-worker:
+    image: apache/airflow:2.8.0
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - /mnt/c/Users/Shefali/Documents/Retail_project/airflowsetup/dags/sparkjobs:/opt/sparkjobs
+      - /var/run/docker.sock:/var/run/docker.sock
+    user: "0:0"
+    command: celery worker
+    networks:
+      - airflow
+
+  airflow-init:
+    image: apache/airflow:2.8.0
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: 'myfernetkey1234567890'
+      AIRFLOW__WEBSERVER__SECRET_KEY: 'mywebserversecretkey'
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - /mnt/c/Users/Shefali/Documents/Retail_project/airflowsetup/dags/sparkjobs:/opt/sparkjobs
+    entrypoint: /bin/bash
+    command: >
+      -c "
+      airflow db migrate &&
+      airflow users create --username airflow --password airflow --firstname Shefali --lastname Sawardekar --role Admin --email airflow@example.com
+      "
+    networks:
+      - airflow
+
+  spark:
+    image: bitnami/spark:latest
+    container_name: spark
+    ports:
+      - "7077:7077"
+      - "8081:8081"
+    environment:
+      - SPARK_MODE=master
+    volumes:
+      - /mnt/c/Users/Shefali/Documents/Retail_project/airflowsetup/dags/sparkjobs:/opt/sparkjobs
+    networks:
+      - airflow
+
+  spark-worker:
+    image: bitnami/spark:latest
+    container_name: spark-worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077
+    depends_on:
+      - spark
+    volumes:
+      - /mnt/c/Users/Shefali/Documents/Retail_project/airflowsetup/dags/sparkjobs:/opt/sparkjobs
+    networks:
+      - airflow
+
+volumes:
+  postgres-db-volume:
+
+networks:
+  airflow:

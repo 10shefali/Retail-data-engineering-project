@@ -1,0 +1,8 @@
+# Ignore airflow logs and temp files
+airflowsetup/logs/
+__pycache__/
+*.pyc
+*.log
+.env
+.envrc
+.DS_Store
